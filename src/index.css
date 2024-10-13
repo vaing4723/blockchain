@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.watermark {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    right: -50%;
+    bottom: -50%;
+    content: "@Mask @Mask @Mask @Mask @Mask @Mask @Mask @Mask @Mask @Mask";
+    z-index: 0;
+    opacity: 0.03;
+    color: white;
+    font-size: 5rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+ 
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  
+  .watermark::after {
+    content: "@Mask @Mask @Mask @Mask @Mask @Mask @Mask @Mask @Mask @Mask";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform: rotate(-45deg);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .text-5xl {
+    font-size: 3rem;
+    line-height: normal;
+    font-family:'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif
+  }
