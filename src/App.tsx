@@ -185,7 +185,7 @@ function App() {
     accountInfo?.tokens
       .filter(
         (token) =>
-          (token.name.toLowerCase().includes(filterText.toLowerCase()) ||
+          (token.name?.toLowerCase().includes(filterText.toLowerCase()) ||
             token.mint.toLowerCase().includes(filterText.toLowerCase())) &&
           (filterMode === "all" ||
             (filterMode === "pump" && token.isPump) ||
