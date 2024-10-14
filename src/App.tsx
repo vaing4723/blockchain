@@ -1,4 +1,10 @@
-import { useState, } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import axios from "axios";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -8,9 +14,27 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useSpring, animated } from "react-spring";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  ColumnDef,
+  flexRender,
+} from "@tanstack/react-table";
 
 /** Address of the SPL Token program */
-const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const TOKEN_PROGRAM_ID = new PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+);
 
 interface TokenInfo {
   mint: string;
@@ -19,7 +43,9 @@ interface TokenInfo {
   name?: string;
   logoURI?: string;
   value?: number;
+  marketCap?: number;
   isPump: boolean;
+  dexScreenerUrl?: string;
 }
 
 interface AccountInfo {
@@ -85,10 +111,10 @@ const getTokenInfo = async (mintAddress: string) => {
       ) {
         const tokenData = response.data.pairs[0];
         return {
-          symbol: tokenData.baseToken.symbol,
-          name: tokenData.baseToken.name,
-          logoURI: tokenData.info.imageUrl,
-          price: parseFloat(tokenData.priceUsd),
+          symbol: tokenData?.baseToken.symbol,
+          name: tokenData?.baseToken.name,
+          logoURI: tokenData?.info.imageUrl,
+          price: parseFloat(tokenData?.priceUsd),
         };
       }
     } catch (error) {
@@ -102,16 +128,185 @@ function isPumpToken(mintAddress: string): boolean {
   return mintAddress.toLowerCase().endsWith("pump");
 }
 
+function formatMarketCap(marketCap: number): string {
+  if (marketCap >= 1000000000) {
+    return `$${(marketCap / 1000000000).toFixed(2)}B`;
+  } else if (marketCap >= 1000000) {
+    return `$${(marketCap / 1000000).toFixed(2)}M`;
+  } else if (marketCap >= 1000) {
+    return `$${(marketCap / 1000).toFixed(2)}K`;
+  } else {
+    return `$${marketCap.toFixed(2)}`;
+  }
+}
+
+const columns: ColumnDef<TokenInfo>[] = [
+  {
+    accessorKey: "symbol",
+    header: ({ column }) => (
+      <div className="flex items-center">
+        Symbol
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" className="ml-2 h-8 w-8 p-0">
+              <ChevronsUpDown className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-40 p-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="showPumpOnly"
+                checked={column.getFilterValue() as boolean}
+                onCheckedChange={(value) => column.setFilterValue(value)}
+              />
+              <Label htmlFor="showPumpOnly">Show Pump Tokens Only</Label>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    ),
+    cell: ({ row }) => (
+      <div className="flex items-center">
+        {row.original.logoURI && (
+          <img
+            src={row.original.logoURI}
+            alt={row.original.symbol}
+            className="w-6 h-6 mr-2 rounded-full"
+          />
+        )}
+        <a
+          href={row.original.dexScreenerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:underline"
+        >
+          {row.original.symbol}
+        </a>
+        {row.original.isPump && (
+          <span className="ml-2 px-2 py-1 bg-purple-500 text-white rounded-full text-xs">
+            PUMP
+          </span>
+        )}
+      </div>
+    ),
+    filterFn: (row, id, value) => {
+      if (!value) return true;
+      return row.original.isPump;
+    },
+  },
+  {
+    accessorKey: "balance",
+    header: "Balance",
+    cell: ({ row }) => row.original.amount.toFixed(4),
+  },
+  {
+    accessorKey: "value",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      >
+        Value (USD)
+        {column.getIsSorted() === "asc" ? (
+          <ChevronUp className="ml-2 h-4 w-4" />
+        ) : column.getIsSorted() === "desc" ? (
+          <ChevronDown className="ml-2 h-4 w-4" />
+        ) : (
+          <ChevronsUpDown className="ml-2 h-4 w-4" />
+        )}
+      </Button>
+    ),
+    cell: ({ row }) => `$${(row.original.value ?? 0).toFixed(2)}`,
+  },
+  {
+    accessorKey: "marketCap",
+    header: ({ column }) => (
+      <div className="flex items-center">
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Market Cap
+          {column.getIsSorted() === "asc" ? (
+            <ChevronUp className="ml-2 h-4 w-4" />
+          ) : column.getIsSorted() === "desc" ? (
+            <ChevronDown className="ml-2 h-4 w-4" />
+          ) : (
+            <ChevronsUpDown className="ml-2 h-4 w-4" />
+          )}
+        </Button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" className="ml-2 h-8 w-8 p-0">
+              <ChevronsUpDown className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-2">
+            <div className="flex items-center space-x-2">
+              <Input
+                type="number"
+                placeholder="Min"
+                value={(column.getFilterValue() as [number, number])?.[0] || ""}
+                onChange={(e) => {
+                  const val = e.target.value
+                    ? Number(e.target.value)
+                    : undefined;
+                  column.setFilterValue((old: [number, number]) => [
+                    val,
+                    old?.[1],
+                  ]);
+                }}
+                className="w-24"
+              />
+              <span>to</span>
+              <Input
+                type="number"
+                placeholder="Max"
+                value={(column.getFilterValue() as [number, number])?.[1] || ""}
+                onChange={(e) => {
+                  const val = e.target.value
+                    ? Number(e.target.value)
+                    : undefined;
+                  column.setFilterValue((old: [number, number]) => [
+                    old?.[0],
+                    val,
+                  ]);
+                }}
+                className="w-24"
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    ),
+    cell: ({ row }) => formatMarketCap(row.original.marketCap??0),
+  },
+];
+
 function App() {
   const [address, setAddress] = useState(DEFAULT_WALLET);
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterText, setFilterText] = useState("");
-  const [sortByValue, setSortByValue] = useState(false);
-  const [filterMode, setFilterMode] = useState<"all" | "pump" | "non-pump">(
-    "all"
-  );
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  } | null>(null);
+  const [showPumpOnly, setShowPumpOnly] = useState(false);
+  const [marketCapRange, setMarketCapRange] = useState<{
+    min: number | null;
+    max: number | null;
+  }>({ min: null, max: null });
+  const [hideSmallAssets, setHideSmallAssets] = useState(false);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const [tableHeight, setTableHeight] = useState("auto");
+
+  useLayoutEffect(() => {
+    if (tableRef.current) {
+      setTableHeight(`${tableRef.current.offsetHeight}px`);
+    }
+  }, []);
 
   const fadeIn = useSpring({
     opacity: 1,
@@ -149,6 +344,7 @@ function App() {
           name: dexScreenerInfo.name,
           logoURI: dexScreenerInfo.logoURI,
           value: tokenData.tokenAmount.uiAmount * dexScreenerInfo.price,
+          marketCap: dexScreenerInfo.marketCap,
           isPump,
         };
 
@@ -183,18 +379,85 @@ function App() {
   //   return <animated.span>{number.to((n) => n.toFixed(4))}</animated.span>
   // }
 
-  const filteredAndSortedTokens =
-    accountInfo?.tokens
-      .filter(
+  const sortedAndFilteredTokens = useMemo(() => {
+    let filteredTokens =
+      accountInfo?.tokens.filter(
         (token) =>
-          (token.name?.toLowerCase().includes(filterText.toLowerCase()) ||
+          (token.symbol?.toLowerCase().includes(filterText.toLowerCase()) ||
             token.mint.toLowerCase().includes(filterText.toLowerCase())) &&
-          (filterMode === "all" ||
-            (filterMode === "pump" && token.isPump) ||
-            (filterMode === "non-pump" && !token.isPump))
-      )
-      .sort((a, b) => (sortByValue ? (b.value || 0) - (a.value || 0) : 0)) ||
-    [];
+          (!showPumpOnly || token.isPump) &&
+          (marketCapRange.min === null ||
+            (token.marketCap || 0) >= marketCapRange.min) &&
+          (marketCapRange.max === null ||
+            (token.marketCap || 0) <= marketCapRange.max) &&
+          (!hideSmallAssets || (token.value || 0) > 1) // Adjust the threshold as needed
+      ) || [];
+
+    if (sortConfig !== null) {
+      filteredTokens.sort((a, b) => {
+        if (
+          (a[sortConfig.key as keyof TokenInfo] ?? 0) <
+          (b[sortConfig.key as keyof TokenInfo] ?? 0)
+        ) {
+          return sortConfig.direction === "asc" ? -1 : 1;
+        }
+        if (
+          (a[sortConfig.key as keyof TokenInfo] ?? 0) >
+          (b[sortConfig.key as keyof TokenInfo] ?? 0)
+        ) {
+          return sortConfig.direction === "asc" ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return filteredTokens;
+  }, [
+    accountInfo,
+    filterText,
+    sortConfig,
+    showPumpOnly,
+    marketCapRange,
+    hideSmallAssets,
+  ]);
+
+  const requestSort = (key: string) => {
+    let direction: "asc" | "desc" = "asc";
+    if (
+      sortConfig &&
+      sortConfig.key === key &&
+      sortConfig.direction === "asc"
+    ) {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortConfig?.key !== column) {
+      return <ChevronsUpDown className="ml-2 h-4 w-4" />;
+    }
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="ml-2 h-4 w-4" />
+    ) : (
+      <ChevronDown className="ml-2 h-4 w-4" />
+    );
+  };
+
+  const openDexScreener = (url: string) => {
+    window.open(url, "_blank");
+  };
+
+  const table = useReactTable({
+    data: (accountInfo?.tokens || []).filter(
+      (token) => !hideSmallAssets || (token.value??0 >= 10)
+    ),
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    enableFilters: true,
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-600 text-white p-8 relative overflow-hidden">
@@ -297,78 +560,69 @@ function App() {
                     className="flex-grow bg-gray-700 border-gray-600 text-white"
                     disabled={loading}
                   />
-                  <select
-                    value={filterMode}
-                    onChange={(e) =>
-                      setFilterMode(
-                        e.target.value as "all" | "pump" | "non-pump"
-                      )
-                    }
-                    className="bg-gray-700 border-gray-600 text-white p-2 rounded"
-                    disabled={loading}
-                  >
-                    <option value="all">All Tokens</option>
-                    <option value="pump">Pump Tokens Only</option>
-                    <option value="non-pump">Non-Pump Tokens Only</option>
-                  </select>
-                  <Button
-                    onClick={() => setSortByValue(!sortByValue)}
-                    className="bg-blue-600 hover:bg-blue-700"
-                    disabled={loading}
-                  >
-                    {sortByValue ? "Sort by Name" : "Sort by Value"}
-                  </Button>
                 </div>
 
                 <Card className="bg-gray-800 border-gray-700">
-                  <CardHeader>
+                  <CardHeader className="flex justify-between items-center">
                     <CardTitle className="text-xl">Token Holdings</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="text-left">
-                            <th className="pb-2">Symbol</th>
-                            <th className="pb-2">Balance</th>
-                            <th className="pb-2">Value (USD)</th>
-                            <th className="pb-2">Contract</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredAndSortedTokens.map((token) => (
-                            <tr
-                              key={token.mint}
-                              className="border-t border-gray-700"
-                            >
-                              <td className="py-2 flex items-center">
-                                {token.logoURI && (
-                                  <img
-                                    src={token.logoURI}
-                                    alt={token.symbol}
-                                    className="w-6 h-6 mr-2 rounded-full"
-                                  />
-                                )}
-                                {token.symbol}
-                                {token.isPump && (
-                                  <span className="ml-2 px-2 py-1 bg-purple-500 text-white rounded-full text-xs">
-                                    PUMP
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2">
-                                {token.amount.toFixed(4)}
-                              </td>
-                              <td className="py-2">
-                                ${token.value ? token.value.toFixed(2) : "N/A"}
-                              </td>
-                              <td className="py-2 text-xs">{token.mint}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="hideSmallAssets"
+                        checked={hideSmallAssets}
+                        onCheckedChange={(checked) =>
+                          setHideSmallAssets(checked as boolean)
+                        }
+                      />
+                      <Label htmlFor="hideSmallAssets">Hide Small Assets</Label>
                     </div>
-                  </CardContent>
+                  </CardHeader>
+                  <div
+                    ref={tableRef}
+                    style={{ height: loading ? tableHeight : "auto" }}
+                  >
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            {table.getHeaderGroups().map((headerGroup) => (
+                              <tr key={headerGroup.id}>
+                                {headerGroup.headers.map((header) => (
+                                  <th
+                                    key={header.id}
+                                    className="px-4 py-2 text-left"
+                                  >
+                                    {header.isPlaceholder
+                                      ? null
+                                      : flexRender(
+                                          header.column.columnDef.header,
+                                          header.getContext()
+                                        )}
+                                  </th>
+                                ))}
+                              </tr>
+                            ))}
+                          </thead>
+                          <tbody>
+                            {table.getRowModel().rows.map((row) => (
+                              <tr
+                                key={row.id}
+                                className="border-t border-gray-700"
+                              >
+                                {row.getVisibleCells().map((cell) => (
+                                  <td key={cell.id} className="px-4 py-2">
+                                    {flexRender(
+                                      cell.column.columnDef.cell,
+                                      cell.getContext()
+                                    )}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </div>
                 </Card>
               </>
             )}
