@@ -1,40 +1,18 @@
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useRef,
-  useLayoutEffect,
-} from "react";
+import React, { useState } from 'react';
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import axios from "axios";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { useSpring, animated } from "react-spring";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Label } from "@/components/ui/label";
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
-  ColumnDef,
-  flexRender,
-} from "@tanstack/react-table";
+  ThemeProvider, createTheme, CssBaseline, Container, Typography, Box, TextField, Button,
+  Paper, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  CircularProgress, Alert, IconButton, Popover, MenuItem, Select, FormControl, InputLabel,
+  SelectChangeEvent
+} from '@mui/material';
+import { PieChart } from '@mui/x-charts/PieChart';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import { themes } from './theme';
 
 /** Address of the SPL Token program */
-const TOKEN_PROGRAM_ID = new PublicKey(
-  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-);
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 
 interface TokenInfo {
   mint: string;
@@ -53,23 +31,11 @@ interface AccountInfo {
   tokens: TokenInfo[];
 }
 
-const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${
-  import.meta.env.VITE_HELIUS_API_KEY
-}`;
+const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`;
 const DEXSCREENER_API = "https://api.dexscreener.com/latest/dex/tokens/";
-const COLORS = [
-  "#0088FE",
-  "#00C49F",
-  "#FFBB28",
-  "#FF8042",
-  "#8884D8",
-  "#83A6ED",
-  "#8DD1E1",
-  "#82CA9D",
-  "#A4DE6C",
-  "#D0ED57",
-];
-const DEFAULT_WALLET = "";
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#83A6ED", "#8DD1E1", "#82CA9D", "#A4DE6C", "#D0ED57"];
+const DEFAULT_WALLET = "5rTPwWRuRP78By8jeUnHEhgSxtUrt2YRJzrMsZBjaL9u";
+const PUMP = "https://pump.fun/_next/image?url=%2Flogo.png&w=32&q=75";
 
 class RequestQueue {
   private queue: (() => Promise<any>)[] = [];
@@ -104,17 +70,15 @@ const getTokenInfo = async (mintAddress: string) => {
   return requestQueue.enqueue(async () => {
     try {
       const response = await axios.get(`${DEXSCREENER_API}${mintAddress}`);
-      if (
-        response.data &&
-        response.data.pairs &&
-        response.data.pairs.length > 0
-      ) {
+      if (response.data && response.data.pairs && response.data.pairs.length > 0) {
         const tokenData = response.data.pairs[0];
         return {
-          symbol: tokenData?.baseToken.symbol,
-          name: tokenData?.baseToken.name,
-          logoURI: tokenData?.info.imageUrl,
-          price: parseFloat(tokenData?.priceUsd),
+          symbol: tokenData.baseToken.symbol,
+          name: tokenData.baseToken.name,
+          logoURI: tokenData.info?.imageUrl,
+          price: parseFloat(tokenData.priceUsd),
+          marketCap: tokenData.marketCap,
+          dexScreenerUrl: tokenData.url
         };
       }
     } catch (error) {
@@ -128,160 +92,13 @@ function isPumpToken(mintAddress: string): boolean {
   return mintAddress.toLowerCase().endsWith("pump");
 }
 
-function formatMarketCap(marketCap: number): string {
-  if (marketCap >= 1000000000) {
-    return `$${(marketCap / 1000000000).toFixed(2)}B`;
-  } else if (marketCap >= 1000000) {
-    return `$${(marketCap / 1000000).toFixed(2)}M`;
-  } else if (marketCap >= 1000) {
-    return `$${(marketCap / 1000).toFixed(2)}K`;
-  } else {
-    return `$${marketCap.toFixed(2)}`;
-  }
+function formatMarketCap(marketCap: number | undefined): string {
+  if (!marketCap) return 'N/A';
+  if (marketCap >= 1e9) return `$${(marketCap / 1e9).toFixed(2)}B`;
+  if (marketCap >= 1e6) return `$${(marketCap / 1e6).toFixed(2)}M`;
+  if (marketCap >= 1e3) return `$${(marketCap / 1e3).toFixed(2)}K`;
+  return `$${marketCap.toFixed(2)}`;
 }
-
-const columns: ColumnDef<TokenInfo>[] = [
-  {
-    accessorKey: "symbol",
-    header: ({ column }) => (
-      <div className="flex items-center">
-        Symbol
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" className="ml-2 h-8 w-8 p-0">
-              <ChevronsUpDown className="h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-40 p-2">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="showPumpOnly"
-                checked={column.getFilterValue() as boolean}
-                onCheckedChange={(value) => column.setFilterValue(value)}
-              />
-              <Label htmlFor="showPumpOnly">Show Pump Tokens Only</Label>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-    ),
-    cell: ({ row }) => (
-      <div className="flex items-center">
-        {row.original.logoURI && (
-          <img
-            src={row.original.logoURI}
-            alt={row.original.symbol}
-            className="w-6 h-6 mr-2 rounded-full"
-          />
-        )}
-        <a
-          href={row.original.dexScreenerUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:underline"
-        >
-          {row.original.symbol}
-        </a>
-        {row.original.isPump && (
-          <span className="ml-2 px-2 py-1 bg-purple-500 text-white rounded-full text-xs">
-            PUMP
-          </span>
-        )}
-      </div>
-    ),
-    filterFn: (row, id, value) => {
-      if (!value) return true;
-      return row.original.isPump;
-    },
-  },
-  {
-    accessorKey: "balance",
-    header: "Balance",
-    cell: ({ row }) => row.original.amount.toFixed(4),
-  },
-  {
-    accessorKey: "value",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Value (USD)
-        {column.getIsSorted() === "asc" ? (
-          <ChevronUp className="ml-2 h-4 w-4" />
-        ) : column.getIsSorted() === "desc" ? (
-          <ChevronDown className="ml-2 h-4 w-4" />
-        ) : (
-          <ChevronsUpDown className="ml-2 h-4 w-4" />
-        )}
-      </Button>
-    ),
-    cell: ({ row }) => `$${(row.original.value ?? 0).toFixed(2)}`,
-  },
-  {
-    accessorKey: "marketCap",
-    header: ({ column }) => (
-      <div className="flex items-center">
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Market Cap
-          {column.getIsSorted() === "asc" ? (
-            <ChevronUp className="ml-2 h-4 w-4" />
-          ) : column.getIsSorted() === "desc" ? (
-            <ChevronDown className="ml-2 h-4 w-4" />
-          ) : (
-            <ChevronsUpDown className="ml-2 h-4 w-4" />
-          )}
-        </Button>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="ghost" className="ml-2 h-8 w-8 p-0">
-              <ChevronsUpDown className="h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-2">
-            <div className="flex items-center space-x-2">
-              <Input
-                type="number"
-                placeholder="Min"
-                value={(column.getFilterValue() as [number, number])?.[0] || ""}
-                onChange={(e) => {
-                  const val = e.target.value
-                    ? Number(e.target.value)
-                    : undefined;
-                  column.setFilterValue((old: [number, number]) => [
-                    val,
-                    old?.[1],
-                  ]);
-                }}
-                className="w-24"
-              />
-              <span>to</span>
-              <Input
-                type="number"
-                placeholder="Max"
-                value={(column.getFilterValue() as [number, number])?.[1] || ""}
-                onChange={(e) => {
-                  const val = e.target.value
-                    ? Number(e.target.value)
-                    : undefined;
-                  column.setFilterValue((old: [number, number]) => [
-                    old?.[0],
-                    val,
-                  ]);
-                }}
-                className="w-24"
-              />
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-    ),
-    cell: ({ row }) => formatMarketCap(row.original.marketCap??0),
-  },
-];
 
 function App() {
   const [address, setAddress] = useState(DEFAULT_WALLET);
@@ -289,30 +106,28 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterText, setFilterText] = useState("");
-  const [sortConfig, setSortConfig] = useState<{
-    key: string;
-    direction: "asc" | "desc";
-  } | null>(null);
-  const [showPumpOnly, setShowPumpOnly] = useState(false);
-  const [marketCapRange, setMarketCapRange] = useState<{
-    min: number | null;
-    max: number | null;
-  }>({ min: null, max: null });
-  const [hideSmallAssets, setHideSmallAssets] = useState(false);
-  const tableRef = useRef<HTMLDivElement>(null);
-  const [tableHeight, setTableHeight] = useState("auto");
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [filterMode, setFilterMode] = useState<"all" | "pump" | "non-pump">("all");
+  const [marketCapFilter, setMarketCapFilter] = useState<{ min: number | null; max: number | null }>({ min: null, max: null });
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
+  const [currentTheme, setCurrentTheme] = useState(themes.luxuryMetalTheme);
 
-  useLayoutEffect(() => {
-    if (tableRef.current) {
-      setTableHeight(`${tableRef.current.offsetHeight}px`);
-    }
-  }, []);
+  const handleChangeTheme = (event: SelectChangeEvent) => {
+    const selectedTheme = themes[event.target.value as keyof typeof themes];
+    setCurrentTheme(selectedTheme);
+  };
 
-  const fadeIn = useSpring({
-    opacity: 1,
-    from: { opacity: 0 },
-    config: { duration: 300 },
-  });
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const open = Boolean(anchorEl);
+  const id = open ? 'simple-popover' : undefined;
+
 
   const fetchAccountInfo = async () => {
     setLoading(true);
@@ -346,6 +161,7 @@ function App() {
           value: tokenData.tokenAmount.uiAmount * dexScreenerInfo.price,
           marketCap: dexScreenerInfo.marketCap,
           isPump,
+          dexScreenerUrl: dexScreenerInfo.dexScreenerUrl
         };
 
         setAccountInfo((prevInfo) => ({
@@ -365,271 +181,237 @@ function App() {
     }
   };
 
-  // useEffect(() => {
-  //   fetchAccountInfo();
-  // }, []);
-
-  // const AnimatedNumber = ({ n }: { n: number }) => {
-  //   const { number } = useSpring({
-  //     from: { number: 0 },
-  //     number: n,
-  //     delay: 200,
-  //     config: { mass: 1, tension: 20, friction: 10 },
-  //   })
-  //   return <animated.span>{number.to((n) => n.toFixed(4))}</animated.span>
-  // }
-
-  const sortedAndFilteredTokens = useMemo(() => {
-    let filteredTokens =
-      accountInfo?.tokens.filter(
-        (token) =>
-          (token.symbol?.toLowerCase().includes(filterText.toLowerCase()) ||
-            token.mint.toLowerCase().includes(filterText.toLowerCase())) &&
-          (!showPumpOnly || token.isPump) &&
-          (marketCapRange.min === null ||
-            (token.marketCap || 0) >= marketCapRange.min) &&
-          (marketCapRange.max === null ||
-            (token.marketCap || 0) <= marketCapRange.max) &&
-          (!hideSmallAssets || (token.value || 0) > 1) // Adjust the threshold as needed
-      ) || [];
-
+  const sortedTokens = React.useMemo(() => {
+    let sortableTokens = [...(accountInfo?.tokens || [])];
     if (sortConfig !== null) {
-      filteredTokens.sort((a, b) => {
-        if (
-          (a[sortConfig.key as keyof TokenInfo] ?? 0) <
-          (b[sortConfig.key as keyof TokenInfo] ?? 0)
-        ) {
-          return sortConfig.direction === "asc" ? -1 : 1;
+      sortableTokens.sort((a, b) => {
+        if (a[sortConfig.key as keyof TokenInfo]! < b[sortConfig.key as keyof TokenInfo]!) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
         }
-        if (
-          (a[sortConfig.key as keyof TokenInfo] ?? 0) >
-          (b[sortConfig.key as keyof TokenInfo] ?? 0)
-        ) {
-          return sortConfig.direction === "asc" ? 1 : -1;
+        if (a[sortConfig.key as keyof TokenInfo]! > b[sortConfig.key as keyof TokenInfo]!) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
         }
         return 0;
       });
     }
-
-    return filteredTokens;
-  }, [
-    accountInfo,
-    filterText,
-    sortConfig,
-    showPumpOnly,
-    marketCapRange,
-    hideSmallAssets,
-  ]);
+    return sortableTokens;
+  }, [accountInfo, sortConfig]);
+  
+  const filteredAndSortedTokens = React.useMemo(() => {
+    return (accountInfo?.tokens || [])
+      .filter(token => 
+        (token.symbol?.toLowerCase().includes(filterText.toLowerCase()) ||
+        token.mint.toLowerCase().includes(filterText.toLowerCase())) &&
+        (filterMode === 'all' || (filterMode === 'pump' && token.isPump) || (filterMode === 'non-pump' && !token.isPump)) &&
+        (!marketCapFilter.min || (token.marketCap || 0) >= marketCapFilter.min) &&
+        (!marketCapFilter.max || (token.marketCap || 0) <= marketCapFilter.max)
+      )
+      .sort((a, b) => {
+        if (!sortConfig) return 0;
+        if ((a[sortConfig.key as keyof TokenInfo]??0) < (b[sortConfig.key as keyof TokenInfo]??0)) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if ((a[sortConfig.key as keyof TokenInfo]??0) > (b[sortConfig.key as keyof TokenInfo]??0)) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+  }, [accountInfo, filterText, filterMode, marketCapFilter, sortConfig]);
 
   const requestSort = (key: string) => {
-    let direction: "asc" | "desc" = "asc";
-    if (
-      sortConfig &&
-      sortConfig.key === key &&
-      sortConfig.direction === "asc"
-    ) {
-      direction = "desc";
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
     }
     setSortConfig({ key, direction });
   };
 
-  const SortIcon = ({ column }: { column: string }) => {
-    if (sortConfig?.key !== column) {
-      return <ChevronsUpDown className="ml-2 h-4 w-4" />;
-    }
-    return sortConfig.direction === "asc" ? (
-      <ChevronUp className="ml-2 h-4 w-4" />
-    ) : (
-      <ChevronDown className="ml-2 h-4 w-4" />
-    );
-  };
-
-  const openDexScreener = (url: string) => {
-    window.open(url, "_blank");
-  };
-
-  const table = useReactTable({
-    data: (accountInfo?.tokens || []).filter(
-      (token) => !hideSmallAssets || (token.value??0 >= 10)
-    ),
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    enableFilters: true,
-  });
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-600 text-white p-8 relative overflow-hidden">
-      <div className="watermark"></div>
-      <div className="container mx-auto max-w-4xl relative z-10">
-        <animated.h1
-          style={fadeIn}
-          className="text-5xl font-bold mb-8 text-center bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-red-900"
+    <ThemeProvider theme={currentTheme}>
+      <CssBaseline />
+      <Container maxWidth="lg">
+        <Box sx={{ my: 4 }}>
+          <Typography variant="h2" component="h1" gutterBottom align="center" sx={{
+            background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}>
+          
+          </Typography>
+          <FormControl variant="outlined" style={{ margin: 16 }}>
+        <InputLabel id="theme-select-label">选择主题</InputLabel>
+        <Select
+          labelId="theme-select-label"
+          onChange={handleChangeTheme}
+          defaultValue="luxuryMetalTheme"
         >
-          JingouLa
-        </animated.h1>
-        <Card className="bg-gray-800 border-gray-700 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-3xl">Smart Money</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex space-x-4 mb-6">
-              <Input
-                type="text"
+          {Object.keys(themes).map((themeKey) => (
+            <MenuItem key={themeKey} value={themeKey}>
+              {themeKey}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+          <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
+            <Typography variant="h4" component="h2" gutterBottom>
+              Smart Money
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+              <TextField
+                fullWidth
+                variant="outlined"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Enter Solana address"
-                className="flex-grow bg-gray-700 border-gray-600 text-white"
                 disabled={loading}
               />
               <Button
+                variant="contained"
                 onClick={fetchAccountInfo}
                 disabled={loading}
-                className="bg-gradient-to-r from-pink-500 to-violet-500 hover:from-pink-600 hover:to-violet-600 transition-all duration-200"
+                sx={{ minWidth: '120px' }}
               >
-                {loading ? "Analyzing..." : "Analyze"}
+                {loading ? <CircularProgress size={24} /> : "Analyze"}
               </Button>
-            </div>
+            </Box>
 
             {error && (
-              <Alert
-                variant="destructive"
-                className="mb-6 bg-red-900 border-red-800"
-              >
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
             )}
 
             {accountInfo && (
               <>
-                <animated.div style={fadeIn}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <Card className="bg-gray-800 border-gray-700">
-                      <CardHeader>
-                        <CardTitle className="text-xl">SOL Balance</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-4xl font-bold">
-                          {accountInfo.balance.toFixed(4)} SOL
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-gray-800 border-gray-700">
-                      <CardHeader>
-                        <CardTitle className="text-xl">
-                          Token Distribution
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={accountInfo.tokens}
-                              dataKey="value"
-                              nameKey="symbol"
-                              cx="50%"
-                              cy="50%"
-                              outerRadius={70}
-                              fill="#8884d8"
-                            >
-                              {accountInfo.tokens.map((entry, index) => (
-                                <Cell
-                                  key={`cell-${index}`}
-                                  fill={COLORS[index % COLORS.length]}
-                                />
-                              ))}
-                            </Pie>
-                            <Tooltip />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </animated.div>
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  <Grid item xs={12} md={6}>
+                    <Paper elevation={2} sx={{ p: 2 }}>
+                      <Typography variant="h6">SOL Balance</Typography>
+                      <Typography variant="h4">{accountInfo.balance.toFixed(4)} SOL</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
+                      <Typography variant="h6">Token Distribution</Typography>
+                      <Box sx={{ height: 200 }}>
+                        <PieChart
+                          series={[
+                            {
+                              data: accountInfo.tokens.map((token, index) => ({
+                                id: index,
+                                value: token.value || 0,
+                                label: token.symbol
+                              })).sort((a, b) => b.value - a.value) // 按值降序排序
+                              .slice(0, 5),
+                              highlightScope: { faded: 'global', highlighted: 'item' },
+                              faded: { innerRadius: 30, additionalRadius: -30 },
+                            },
+                          ]}
+                          height={200}
+                        />
+                      </Box>
+                    </Paper>
+                  </Grid>
+                </Grid>
 
-                <Separator className="my-6 bg-gray-700" />
-
-                <div className="mb-4 flex flex-wrap gap-2">
-                  <Input
-                    type="text"
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <TextField
+                    variant="outlined"
+                    size="small"
                     value={filterText}
                     onChange={(e) => setFilterText(e.target.value)}
                     placeholder="Filter tokens"
-                    className="flex-grow bg-gray-700 border-gray-600 text-white"
-                    disabled={loading}
+                    sx={{ flexGrow: 1, mr: 2 }}
                   />
-                </div>
-
-                <Card className="bg-gray-800 border-gray-700">
-                  <CardHeader className="flex justify-between items-center">
-                    <CardTitle className="text-xl">Token Holdings</CardTitle>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="hideSmallAssets"
-                        checked={hideSmallAssets}
-                        onCheckedChange={(checked) =>
-                          setHideSmallAssets(checked as boolean)
-                        }
-                      />
-                      <Label htmlFor="hideSmallAssets">Hide Small Assets</Label>
-                    </div>
-                  </CardHeader>
-                  <div
-                    ref={tableRef}
-                    style={{ height: loading ? tableHeight : "auto" }}
+                  <IconButton onClick={handleClick}>
+                    <FilterListIcon />
+                  </IconButton>
+                  <Popover
+                    id={id}
+                    open={open}
+                    anchorEl={anchorEl}
+                    onClose={handleClose}
+                    anchorOrigin={{
+                      vertical: 'bottom',
+                      horizontal: 'right',
+                    }}
+                    transformOrigin={{
+                      vertical: 'top',
+                      horizontal: 'right',
+                    }}
                   >
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            {table.getHeaderGroups().map((headerGroup) => (
-                              <tr key={headerGroup.id}>
-                                {headerGroup.headers.map((header) => (
-                                  <th
-                                    key={header.id}
-                                    className="px-4 py-2 text-left"
-                                  >
-                                    {header.isPlaceholder
-                                      ? null
-                                      : flexRender(
-                                          header.column.columnDef.header,
-                                          header.getContext()
-                                        )}
-                                  </th>
-                                ))}
-                              </tr>
-                            ))}
-                          </thead>
-                          <tbody>
-                            {table.getRowModel().rows.map((row) => (
-                              <tr
-                                key={row.id}
-                                className="border-t border-gray-700"
-                              >
-                                {row.getVisibleCells().map((cell) => (
-                                  <td key={cell.id} className="px-4 py-2">
-                                    {flexRender(
-                                      cell.column.columnDef.cell,
-                                      cell.getContext()
-                                    )}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </div>
-                </Card>
+                    <Box sx={{ p: 2 }}>
+                      <FormControl fullWidth sx={{ mb: 2 }}>
+                        <InputLabel id="filter-mode-label">Filter Mode</InputLabel>
+                        <Select
+                          labelId="filter-mode-label"
+                          value={filterMode}
+                          onChange={(e) => setFilterMode(e.target.value as "all" | "pump" | "non-pump")}
+                        >
+                          <MenuItem value="all">All Tokens</MenuItem>
+                          <MenuItem value="pump">Pump Tokens Only</MenuItem>
+                          <MenuItem value="non-pump">Non-Pump Tokens Only</MenuItem>
+                        </Select>
+                      </FormControl>
+                      <TextField
+                        fullWidth
+                        label="Min Market Cap"
+                        type="number"
+                        value={marketCapFilter.min || ''}
+                        onChange={(e) => setMarketCapFilter(prev => ({ ...prev, min: e.target.value ? Number(e.target.value) : null }))}
+                        sx={{ mb: 2 }}
+                      />
+                      <TextField
+                        fullWidth
+                        label="Max Market Cap"
+                        type="number"
+                        value={marketCapFilter.max || ''}
+                        onChange={(e) => setMarketCapFilter(prev => ({ ...prev, max: e.target.value ? Number(e.target.value) : null }))}
+                      />
+                    </Box>
+                                </Popover>
+                </Box>
+
+                <TableContainer component={Paper}>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Symbol</TableCell>
+                        <TableCell>Balance</TableCell>
+                        <TableCell onClick={() => requestSort('value')} style={{ cursor: 'pointer' }}>
+                          Value (USD) {sortConfig?.key === 'value' && (sortConfig.direction === 'asc' ? '▲' : '▼')}
+                        </TableCell>
+                        <TableCell onClick={() => requestSort('marketCap')} style={{ cursor: 'pointer' }}>
+                          Market Cap {sortConfig?.key === 'marketCap' && (sortConfig.direction === 'asc' ? '▲' : '▼')}
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                          {filteredAndSortedTokens.map((token) => (
+                        <TableRow key={token.mint} onClick={() => token.dexScreenerUrl && window.open(token.dexScreenerUrl, '_blank')} sx={{ cursor: 'pointer' }}>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                {token.logoURI && (
+                                <img src={token.logoURI} alt={token.symbol} style={{ width: 24, height: 24, marginRight: 8, borderRadius: '50%' }} />
+                                )}
+                                {token.symbol}
+                                {token.isPump && (
+                                <img src={PUMP} alt={token.symbol} style={{ width: 24, height: 24, marginLeft: 8, borderRadius: '50%' }} />
+                                )}
+                            </Box>
+                          </TableCell>
+                          <TableCell>{token.amount.toFixed(4)}</TableCell>
+                          <TableCell>${token.value ? token.value.toFixed(2) : 'N/A'}</TableCell>
+                          <TableCell>{formatMarketCap(token.marketCap)}</TableCell>
+                        </TableRow>
+                          ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </>
             )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+          </Paper>
+        </Box>
+      </Container>
+    </ThemeProvider>
   );
 }
 
