@@ -35,7 +35,7 @@ const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${import.meta.env.VI
 const DEXSCREENER_API = "https://api.dexscreener.com/latest/dex/tokens/";
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#83A6ED", "#8DD1E1", "#82CA9D", "#A4DE6C", "#D0ED57"];
 const DEFAULT_WALLET = "";
-const PUMP = "https://pump.fun/_next/image?url=%2Flogo.png&w=32&q=75";
+const PUMP = "/pump.png";
 
 class RequestQueue {
   private queue: (() => Promise<any>)[] = [];
