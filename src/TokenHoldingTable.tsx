@@ -126,13 +126,13 @@ const TokenHoldingsTable = ({ tokens }) => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>名称</TableCell>
-              <TableCell>余额</TableCell>
-              <TableCell>价格</TableCell>
-              <TableCell onClick={() => handleSort('value')}>
+              <TableCell style={{ whiteSpace: 'nowrap' }}>名称</TableCell>
+              <TableCell style={{ whiteSpace: 'nowrap' }}>余额</TableCell>
+              <TableCell style={{ whiteSpace: 'nowrap' }}>价格</TableCell>
+              <TableCell style={{ whiteSpace: 'nowrap' }} onClick={() => handleSort('value')}>
                 价值 {sortConfig.key === 'value' && (sortConfig.direction === 'asc' ? <ArrowUpward /> : <ArrowDownward />)}
               </TableCell>
-              <TableCell onClick={() => handleSort('marketCap')}>
+              <TableCell style={{ whiteSpace: 'nowrap' }} onClick={() => handleSort('marketCap')}>
                 市值 {sortConfig.key === 'marketCap' && (sortConfig.direction === 'asc' ? <ArrowUpward /> : <ArrowDownward />)}
               </TableCell>
             </TableRow>
@@ -140,16 +140,16 @@ const TokenHoldingsTable = ({ tokens }) => {
           <TableBody>
             {filteredAndSortedTokens.map((token) => (
               <TableRow key={token.mintAddress} onClick={() => token.url && window.open(token.url, '_blank')} sx={{ cursor: 'pointer' }}>
-                <TableCell>
+                <TableCell style={{ whiteSpace: 'nowrap' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center' }}>
                     {token.logoURI && <img src={token.logoURI} alt={token.symbol} style={{ width: 24, height: 24, marginRight: 8 }} />}
                     {token.symbol}
                     {isPumpToken(token.mint) && <img src='/pump.png' alt={token.symbol} style={{ width: 24, height: 24, marginLeft: 5 }} />}
                   </Box>
                 </TableCell>
-                <TableCell>{token.amount.toFixed(2)}</TableCell>
-                <TableCell>${formatToFirstNonZeroDecimal(token.price)}</TableCell>
-                <TableCell>${token.value.toFixed(2)}</TableCell>
+                <TableCell style={{ whiteSpace: 'nowrap' }}>{token.amount.toFixed(2)}</TableCell>
+                <TableCell style={{ whiteSpace: 'nowrap' }}>${formatToFirstNonZeroDecimal(token.price)}</TableCell>
+                <TableCell style={{ whiteSpace: 'nowrap' }}>${token.value.toFixed(2)}</TableCell>
                 <TableCell>
                 {token.marketCap && token.marketCap > 0 
                     ? `$${token.marketCap.toLocaleString()}`
