@@ -224,5 +224,33 @@ export const themes = {
   }),
 };
 
-// 导出主题对象
-export default themes;
+const createCustomTheme = (mode:any) => createTheme({
+  palette: {
+    mode,
+    primary: {
+      main: mode === 'light' ? '#1976d2' : '#90caf9',
+    },
+    secondary: {
+      main: mode === 'light' ? '#dc004e' : '#f48fb1',
+    },
+    background: {
+      default: mode === 'light' ? '#f5f5f5' : '#303030',
+      paper: mode === 'light' ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.8)',
+    },
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          backdropFilter: 'blur(10px)',
+          backgroundColor: mode === 'light' ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+          borderRadius: '10px',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+        },
+      },
+    },
+  },
+});
+
+export const lightTheme = createCustomTheme('light');
+export const darkTheme = createCustomTheme('dark');

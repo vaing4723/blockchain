@@ -1,418 +1,269 @@
-import React, { useState } from 'react';
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import axios from "axios";
-import {
-  ThemeProvider, createTheme, CssBaseline, Container, Typography, Box, TextField, Button,
+import React, { useState, useEffect } from 'react';
+import { 
+  ThemeProvider, CssBaseline, Container, Typography, Box, TextField, Button,
   Paper, Grid, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  CircularProgress, Alert, IconButton, Popover, MenuItem, Select, FormControl, InputLabel,
-  SelectChangeEvent
+  CircularProgress, Alert, IconButton, Tooltip, Card, CardContent, Chip, Fade
 } from '@mui/material';
-import { PieChart } from '@mui/x-charts/PieChart';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import { themes } from './theme';
+import { styled } from '@mui/system';
+import { Search, Refresh, NightsStay, WbSunny, Wallet } from '@mui/icons-material';
+import { motion, AnimatePresence } from 'framer-motion';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import CountUp from 'react-countup';
+import Particles from 'react-tsparticles';
+import { loadFull } from 'tsparticles';
 
-/** Address of the SPL Token program */
-const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+import { fetchAccountInfo, formatMarketCap, isPumpToken } from './utils';
+import { lightTheme, darkTheme } from './theme';
+import {StarryNightParticles, NetworkParticles, BubbleParticles} from './Background';
+import TokenHoldingsTable from './TokenHoldingTable';
+import TokenPriceChart from './TokenPriceChart';
+import RiskAssessmentDashboard from './RiskAssessmentDashboard';
+import PortfolioValueChart from './PortfolioValueChart';
 
-interface TokenInfo {
-  mint: string;
-  amount: number;
-  symbol?: string;
-  name?: string;
-  logoURI?: string;
-  value?: number;
-  marketCap?: number;
-  isPump: boolean;
-  dexScreenerUrl?: string;
-}
+const StyledContainer = styled(Container)(({ theme }) => ({
+  position: 'relative',
+  zIndex: 1,
+}));
 
-interface AccountInfo {
-  balance: number;
-  tokens: TokenInfo[];
-}
+const GlassCard = styled(Card)(({ theme }) => ({
+  background: 'rgba(255, 255, 255, 0.1)',
+  backdropFilter: 'blur(10px)',
+  borderRadius: '10px',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+}));
 
-const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`;
-const DEXSCREENER_API = "https://api.dexscreener.com/latest/dex/tokens/";
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#83A6ED", "#8DD1E1", "#82CA9D", "#A4DE6C", "#D0ED57"];
-const DEFAULT_WALLET = "";
-const PUMP = "/pump.png";
+const AnimatedTypography = styled(motion.div)(({ theme }) => ({
+  display: 'inline-block',
+}));
 
-class RequestQueue {
-  private queue: (() => Promise<any>)[] = [];
-  private processing = false;
+const LoadingAnimation = () => (
+  <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="200px">
+    <motion.div
+      animate={{
+        scale: [1, 2, 2, 1, 1],
+        rotate: [0, 0, 270, 270, 0],
+        borderRadius: ["20%", "20%", "50%", "50%", "20%"],
+      }}
+      transition={{
+        duration: 2,
+        ease: "easeInOut",
+        times: [0, 0.2, 0.5, 0.8, 1],
+        repeat: Infinity,
+        repeatDelay: 1
+      }}
+    >
+      <Wallet style={{ fontSize: 50, color: '#1976d2' }} />
+    </motion.div>
+    <Typography variant="h6" style={{ marginTop: '20px' }}>正在加载钱包数据...</Typography>
+  </Box>
+);
 
-  enqueue(request: () => Promise<any>): Promise<any> {
-    return new Promise((resolve, reject) => {
-      this.queue.push(() => request().then(resolve).catch(reject));
-      if (!this.processing) {
-        this.processQueue();
-      }
-    });
-  }
+const TokenDistributionChart = ({ tokens }) => {
+  const data = tokens.slice(0, 5).map(token => ({
+    name: token.symbol,
+    value: token.value || 0
+  }));
 
-  private async processQueue() {
-    if (this.processing) return;
-    this.processing = true;
-    while (this.queue.length > 0) {
-      const request = this.queue.shift();
-      if (request) {
-        await request();
-        await new Promise((resolve) => setTimeout(resolve, 200)); // 200ms delay between requests
-      }
-    }
-    this.processing = false;
-  }
-}
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-const requestQueue = new RequestQueue();
-
-const getTokenInfo = async (mintAddress: string) => {
-  return requestQueue.enqueue(async () => {
-    try {
-      const response = await axios.get(`${DEXSCREENER_API}${mintAddress}`);
-      if (response.data && response.data.pairs && response.data.pairs.length > 0) {
-        const tokenData = response.data.pairs[0];
-        return {
-          symbol: tokenData.baseToken.symbol,
-          name: tokenData.baseToken.name,
-          logoURI: tokenData.info?.imageUrl,
-          price: parseFloat(tokenData.priceUsd),
-          marketCap: tokenData.marketCap,
-          dexScreenerUrl: tokenData.url
-        };
-      }
-    } catch (error) {
-      console.error("Error fetching token info from DEXScreener:", error);
-    }
-    return null;
-  });
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <PieChart>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          labelLine={false}
+          outerRadius={80}
+          fill="#8884d8"
+          dataKey="value"
+        >
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+          ))}
+        </Pie>
+        <RechartsTooltip />
+        <Legend />
+      </PieChart>
+    </ResponsiveContainer>
+  );
 };
 
-function isPumpToken(mintAddress: string): boolean {
-  return mintAddress.toLowerCase().endsWith("pump");
-}
+const TokenValueChart = ({ tokens }) => {
+  const data = tokens.slice(0, 10).map(token => ({
+    name: token.symbol,
+    value: token.value || 0,
+    marketCap: token.marketCap || 0
+  }));
 
-function formatMarketCap(marketCap: number | undefined): string {
-  if (!marketCap) return 'N/A';
-  if (marketCap >= 1e9) return `$${(marketCap / 1e9).toFixed(2)}B`;
-  if (marketCap >= 1e6) return `$${(marketCap / 1e6).toFixed(2)}M`;
-  if (marketCap >= 1e3) return `$${(marketCap / 1e3).toFixed(2)}K`;
-  return `$${marketCap.toFixed(2)}`;
-}
+  return (
+    <ResponsiveContainer width="100%" height={300}>
+      <BarChart data={data}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" />
+        <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
+        <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+        <RechartsTooltip />
+        <Legend />
+        <Bar yAxisId="left" dataKey="value" fill="#8884d8" name="Value (USD)" />
+        <Bar yAxisId="right" dataKey="marketCap" fill="#82ca9d" name="Market Cap" />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+};
 
-function App() {
-  const [address, setAddress] = useState(DEFAULT_WALLET);
-  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+const App = () => {
+  const [address, setAddress] = useState('');
+  const result:any = null;
+  const [accountInfo, setAccountInfo] = useState(result);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [filterText, setFilterText] = useState("");
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-  const [filterMode, setFilterMode] = useState<"all" | "pump" | "non-pump">("all");
-  const [marketCapFilter, setMarketCapFilter] = useState<{ min: number | null; max: number | null }>({ min: null, max: null });
-  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
-  const [currentTheme, setCurrentTheme] = useState(themes.luxuryMetalTheme);
+  const [error, setError] = useState(null);
+  const [darkMode, setDarkMode] = useState(true);
 
-  const handleChangeTheme = (event: SelectChangeEvent) => {
-    const selectedTheme = themes[event.target.value as keyof typeof themes];
-    setCurrentTheme(selectedTheme);
+  const theme = darkMode ? darkTheme : lightTheme;
+  const currentPortfolioValue = (tokens) => {
+    return tokens.reduce((sum, token) => sum + (token.value || 0), 0)
   };
 
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  const open = Boolean(anchorEl);
-  const id = open ? 'simple-popover' : undefined;
-
-
-  const fetchAccountInfo = async () => {
+  const handleAnalyze = async () => {
     setLoading(true);
     setError(null);
-    setAccountInfo(null);
     try {
-      const connection = new Connection(HELIUS_RPC);
-      const pubKey = new PublicKey(address);
-
-      const solBalance = await connection.getBalance(pubKey);
-      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-        pubKey,
-        { programId: TOKEN_PROGRAM_ID }
-      );
-
-      const tokenPromises = tokenAccounts.value.map(async (account) => {
-        const tokenData = account.account.data.parsed.info;
-        if (tokenData.tokenAmount.uiAmount === 0) return null;
-
-        const isPump = isPumpToken(tokenData.mint);
-        const dexScreenerInfo = await getTokenInfo(tokenData.mint);
-
-        if (!dexScreenerInfo) return null;
-
-        const tokenInfo: TokenInfo = {
-          mint: tokenData.mint,
-          amount: tokenData.tokenAmount.uiAmount,
-          symbol: dexScreenerInfo.symbol,
-          name: dexScreenerInfo.name,
-          logoURI: dexScreenerInfo.logoURI,
-          value: tokenData.tokenAmount.uiAmount * dexScreenerInfo.price,
-          marketCap: dexScreenerInfo.marketCap,
-          isPump,
-          dexScreenerUrl: dexScreenerInfo.dexScreenerUrl
-        };
-
-        setAccountInfo((prevInfo) => ({
-          balance: solBalance / LAMPORTS_PER_SOL,
-          tokens: [...(prevInfo?.tokens || []), tokenInfo],
-        }));
-
-        return tokenInfo;
-      });
-
-      await Promise.all(tokenPromises);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : String(err));
+      const info = await fetchAccountInfo(address);
+      setAccountInfo(info);
+    } catch (err:any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const sortedTokens = React.useMemo(() => {
-    let sortableTokens = [...(accountInfo?.tokens || [])];
-    if (sortConfig !== null) {
-      sortableTokens.sort((a, b) => {
-        if (a[sortConfig.key as keyof TokenInfo]! < b[sortConfig.key as keyof TokenInfo]!) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (a[sortConfig.key as keyof TokenInfo]! > b[sortConfig.key as keyof TokenInfo]!) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    return sortableTokens;
-  }, [accountInfo, sortConfig]);
-  
-  const filteredAndSortedTokens = React.useMemo(() => {
-    return (accountInfo?.tokens || [])
-      .filter(token => 
-        (token.symbol?.toLowerCase().includes(filterText.toLowerCase()) ||
-        token.mint.toLowerCase().includes(filterText.toLowerCase())) &&
-        (filterMode === 'all' || (filterMode === 'pump' && token.isPump) || (filterMode === 'non-pump' && !token.isPump)) &&
-        (!marketCapFilter.min || (token.marketCap || 0) >= marketCapFilter.min) &&
-        (!marketCapFilter.max || (token.marketCap || 0) <= marketCapFilter.max)
-      )
-      .sort((a, b) => {
-        if (!sortConfig) return 0;
-        if ((a[sortConfig.key as keyof TokenInfo]??0) < (b[sortConfig.key as keyof TokenInfo]??0)) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if ((a[sortConfig.key as keyof TokenInfo]??0) > (b[sortConfig.key as keyof TokenInfo]??0)) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-  }, [accountInfo, filterText, filterMode, marketCapFilter, sortConfig]);
-
-  const requestSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
+  const particlesInit = async (main:any) => {
+    await loadFull(main);
   };
 
   return (
-    <ThemeProvider theme={currentTheme}>
+    <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Container maxWidth="lg">
+      <StarryNightParticles darkMode={darkMode} />
+      <StyledContainer maxWidth="lg">
         <Box sx={{ my: 4 }}>
-          <Typography variant="h2" component="h1" gutterBottom align="center" sx={{
-            background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}>
+          <AnimatePresence>
+            <motion.div
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Typography variant="h2" component="h1" gutterBottom align="right" sx={{
+                background: 'linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}>
+                <Grid item xs={12} md={1}>
+                <Tooltip title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
+                  <IconButton onClick={() => setDarkMode(!darkMode)}>
+                    {darkMode ? <WbSunny /> : <NightsStay />}
+                  </IconButton>
+                </Tooltip>
+              </Grid>
+              </Typography>
+            </motion.div>
+          </AnimatePresence>
           
-          </Typography>
-          <FormControl variant="outlined" style={{ margin: 16 }}>
-        <InputLabel id="theme-select-label">选择主题</InputLabel>
-        <Select
-          labelId="theme-select-label"
-          onChange={handleChangeTheme}
-          defaultValue="luxuryMetalTheme"
-        >
-          {Object.keys(themes).map((themeKey) => (
-            <MenuItem key={themeKey} value={themeKey}>
-              {themeKey}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-          <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
-            <Typography variant="h4" component="h2" gutterBottom>
-              Smart Money
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-              <TextField
-                fullWidth
-                variant="outlined"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Enter Solana address"
-                disabled={loading}
-              />
-              <Button
-                variant="contained"
-                onClick={fetchAccountInfo}
-                disabled={loading}
-                sx={{ minWidth: '120px' }}
-              >
-                {loading ? <CircularProgress size={24} /> : "Analyze"}
-              </Button>
-            </Box>
+          <GlassCard elevation={3} sx={{ p: 3, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={8}>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="输入大哥钱包"
+                  InputProps={{
+                    startAdornment: <Search color="action" sx={{ mr: 1 }} />,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  onClick={handleAnalyze}
+                  disabled={loading}
+                  startIcon={loading ? <CircularProgress size={20} /> : <Refresh />}
+                >
+                  {loading ? "正在分析大哥钱包..." : "分析"}
+                </Button>
+              </Grid>
+              
+            </Grid>
+          </GlassCard>
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
-            )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
+          )}
 
+          {loading && <LoadingAnimation />}
+
+          <AnimatePresence>
             {accountInfo && (
-              <>
+              <motion.div
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 50 }}
+                transition={{ duration: 0.5 }}
+              >
                 <Grid container spacing={3} sx={{ mb: 3 }}>
                   <Grid item xs={12} md={6}>
-                    <Paper elevation={2} sx={{ p: 2 }}>
-                      <Typography variant="h6">SOL Balance</Typography>
-                      <Typography variant="h4">{accountInfo.balance.toFixed(4)} SOL</Typography>
-                    </Paper>
+                    <GlassCard>
+                      <CardContent>
+                        <Typography variant="h5" gutterBottom>SOL 余额</Typography>
+                        <Typography variant="h3">
+                          <CountUp
+                            end={accountInfo.balance}
+                            decimals={4}
+                            duration={2}
+                            separator=","
+                          />
+                          <span style={{ fontSize: '0.6em' }}> SOL</span>
+                        </Typography>
+                      </CardContent>
+                    </GlassCard>
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <Paper elevation={2} sx={{ p: 2, height: '100%' }}>
-                      <Typography variant="h6">Token Distribution</Typography>
-                      <Box sx={{ height: 200 }}>
-                        <PieChart
-                          series={[
-                            {
-                              data: accountInfo.tokens.map((token, index) => ({
-                                id: index,
-                                value: token.value || 0,
-                                label: token.symbol
-                              })).sort((a, b) => b.value - a.value) // 按值降序排序
-                              .slice(0, 5),
-                              highlightScope: { faded: 'global', highlighted: 'item' },
-                              faded: { innerRadius: 30, additionalRadius: -30 },
-                            },
-                          ]}
-                          height={200}
-                        />
-                      </Box>
-                    </Paper>
+                    <GlassCard>
+                      <CardContent>
+                        <Typography variant="h5" gutterBottom>持仓总价值</Typography>
+                        <Typography variant="h3">
+                          $<CountUp
+                            end={accountInfo.tokens.reduce((sum, token) => sum + (token.value || 0), 0)}
+                            decimals={2}
+                            duration={2}
+                            separator=","
+                          />
+                        </Typography>
+                      </CardContent>
+                    </GlassCard>
                   </Grid>
                 </Grid>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <TextField
-                    variant="outlined"
-                    size="small"
-                    value={filterText}
-                    onChange={(e) => setFilterText(e.target.value)}
-                    placeholder="Filter tokens"
-                    sx={{ flexGrow: 1, mr: 2 }}
-                  />
-                  <IconButton onClick={handleClick}>
-                    <FilterListIcon />
-                  </IconButton>
-                  <Popover
-                    id={id}
-                    open={open}
-                    anchorEl={anchorEl}
-                    onClose={handleClose}
-                    anchorOrigin={{
-                      vertical: 'bottom',
-                      horizontal: 'right',
-                    }}
-                    transformOrigin={{
-                      vertical: 'top',
-                      horizontal: 'right',
-                    }}
-                  >
-                    <Box sx={{ p: 2 }}>
-                      <FormControl fullWidth sx={{ mb: 2 }}>
-                        <InputLabel id="filter-mode-label">Filter Mode</InputLabel>
-                        <Select
-                          labelId="filter-mode-label"
-                          value={filterMode}
-                          onChange={(e) => setFilterMode(e.target.value as "all" | "pump" | "non-pump")}
-                        >
-                          <MenuItem value="all">All Tokens</MenuItem>
-                          <MenuItem value="pump">Pump Tokens Only</MenuItem>
-                          <MenuItem value="non-pump">Non-Pump Tokens Only</MenuItem>
-                        </Select>
-                      </FormControl>
-                      <TextField
-                        fullWidth
-                        label="Min Market Cap"
-                        type="number"
-                        value={marketCapFilter.min || ''}
-                        onChange={(e) => setMarketCapFilter(prev => ({ ...prev, min: e.target.value ? Number(e.target.value) : null }))}
-                        sx={{ mb: 2 }}
-                      />
-                      <TextField
-                        fullWidth
-                        label="Max Market Cap"
-                        type="number"
-                        value={marketCapFilter.max || ''}
-                        onChange={(e) => setMarketCapFilter(prev => ({ ...prev, max: e.target.value ? Number(e.target.value) : null }))}
-                      />
-                    </Box>
-                                </Popover>
-                </Box>
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  <Grid item xs={12} md={6}>
+                    <PortfolioValueChart currentValue={currentPortfolioValue(accountInfo.tokens)} ></PortfolioValueChart>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <RiskAssessmentDashboard tokens={accountInfo.tokens} totalValue={currentPortfolioValue(accountInfo.tokens)} ></RiskAssessmentDashboard>
+                  </Grid>
+                </Grid>
 
-                <TableContainer component={Paper}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Symbol</TableCell>
-                        <TableCell>Balance</TableCell>
-                        <TableCell onClick={() => requestSort('value')} style={{ cursor: 'pointer' }}>
-                          Value (USD) {sortConfig?.key === 'value' && (sortConfig.direction === 'asc' ? '▲' : '▼')}
-                        </TableCell>
-                        <TableCell onClick={() => requestSort('marketCap')} style={{ cursor: 'pointer' }}>
-                          Market Cap {sortConfig?.key === 'marketCap' && (sortConfig.direction === 'asc' ? '▲' : '▼')}
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                          {filteredAndSortedTokens.map((token) => (
-                        <TableRow key={token.mint} onClick={() => token.dexScreenerUrl && window.open(token.dexScreenerUrl, '_blank')} sx={{ cursor: 'pointer' }}>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                {token.logoURI && (
-                                <img src={token.logoURI} alt={token.symbol} style={{ width: 24, height: 24, marginRight: 8, borderRadius: '50%' }} />
-                                )}
-                                {token.symbol}
-                                {token.isPump && (
-                                <img src={PUMP} alt={token.symbol} style={{ width: 24, height: 24, marginLeft: 8, borderRadius: '50%' }} />
-                                )}
-                            </Box>
-                          </TableCell>
-                          <TableCell>{token.amount.toFixed(4)}</TableCell>
-                          <TableCell>${token.value ? token.value.toFixed(2) : 'N/A'}</TableCell>
-                          <TableCell>{formatMarketCap(token.marketCap)}</TableCell>
-                        </TableRow>
-                          ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </>
+                <TokenHoldingsTable tokens={accountInfo.tokens}></TokenHoldingsTable>
+              </motion.div>
             )}
-          </Paper>
+          </AnimatePresence>
         </Box>
-      </Container>
+      </StyledContainer>
     </ThemeProvider>
   );
-}
+};
 
 export default App;
