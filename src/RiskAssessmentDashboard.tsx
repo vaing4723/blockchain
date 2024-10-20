@@ -10,7 +10,7 @@ const calculateRiskScore = (tokens, totalValue) => {
   let highRiskValue = 0;
 
   tokens.forEach(token => {
-    const tokenValue = token.amount * token.price;
+    const tokenValue = token.balance * token.price;
     if (token.isLowRisk) {
       lowRiskValue += tokenValue;
     }
@@ -61,10 +61,10 @@ const RiskFactor = ({ name, value, color }) => (
 const RiskAssessmentDashboard = ({ tokens, totalValue }) => {
   const riskScore = calculateRiskScore(tokens, totalValue);
 
-  const lowRiskValue = tokens.filter(t => t.symbol === 'SOL').reduce((sum, t) => sum + t.amount * t.price, 0);
-  const mediumRiskValue = tokens.filter(t => t.marketCap >= 100000000).reduce((sum, t) => sum + t.amount * t.price, 0);
-  const highMediumRiskValue = tokens.filter(t => t.marketCap >= 20000000).reduce((sum, t) => sum + t.amount * t.price, 0);
-  const highRiskValue = tokens.filter(t => isPumpToken(t.mint)).reduce((sum, t) => sum + t.amount * t.price, 0);
+  const lowRiskValue = tokens.filter(t => t.symbol === 'SOL').reduce((sum, t) => sum + t.balance * t.price, 0);
+  const mediumRiskValue = tokens.filter(t => t.marketCap >= 100000000).reduce((sum, t) => sum + t.balance * t.price, 0);
+  const highMediumRiskValue = tokens.filter(t => t.marketCap >= 20000000).reduce((sum, t) => sum + t.balance * t.price, 0);
+  const highRiskValue = tokens.filter(t => isPumpToken(t.mint)).reduce((sum, t) => sum + t.balance * t.price, 0);
 
   const riskFactors = [
     { name: '低风险', value: (lowRiskValue / totalValue) * 100, color: 'success' },

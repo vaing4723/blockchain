@@ -49,7 +49,7 @@ export const fetchAccountInfo = async (address:any) => {
 
     return {
       mint: tokenData.mint,
-      amount: tokenData.tokenAmount.uiAmount,
+      balance: tokenData.tokenAmount.uiAmount,
       symbol: dexScreenerInfo.symbol,
       name: dexScreenerInfo.name,
       logoURI: dexScreenerInfo.logoURI,
@@ -57,7 +57,12 @@ export const fetchAccountInfo = async (address:any) => {
       marketCap: dexScreenerInfo.marketCap,
       price: dexScreenerInfo.price,
       isLowRisk: dexScreenerInfo.isLowRisk,
-      url: dexScreenerInfo.url
+      url: dexScreenerInfo.url,
+      volume24h: dexScreenerInfo.volume24h,
+      priceChange24h: dexScreenerInfo.priceChange24h,
+      liquidity: dexScreenerInfo.liquidity,
+      pairCreatedAt: dexScreenerInfo.pairCreatedAt,
+      isPump: isPumpToken(tokenData.mint)
     };
   }));
 
@@ -95,7 +100,11 @@ const getTokenInfo = async (mintAddress:any) => {
         price: parseFloat(tokenData.priceUsd),
         marketCap: tokenData.marketCap,
         isLowRisk: isLowRisk,
-        url: tokenData.url
+        url: tokenData.url,
+        volume24h: parseFloat(tokenData.volume.h24),
+        priceChange24h: parseFloat(tokenData.priceChange.h24),
+        liquidity: parseFloat(tokenData.liquidity.usd),
+        pairCreatedAt: tokenData.pairCreatedAt,
       };
     }
   } catch (error) {

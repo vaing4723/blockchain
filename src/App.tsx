@@ -122,12 +122,13 @@ const App = () => {
 
   const theme = darkMode ? darkTheme : lightTheme;
   const currentPortfolioValue = (tokens) => {
-    return tokens.reduce((sum, token) => sum + (token.value || 0), 0)
+    return tokens?.reduce((sum, token) => sum + (token.value || 0), 0) || 0;
   };
 
   const handleAnalyze = async () => {
     setLoading(true);
     setError(null);
+    setAccountInfo(null); // 重置 accountInfo
     try {
       const info = await fetchAccountInfo(address);
       setAccountInfo(info);
@@ -138,9 +139,11 @@ const App = () => {
     }
   };
 
-  const particlesInit = async (main:any) => {
-    await loadFull(main);
-  };
+  // 当地址改变时重置状态
+  useEffect(() => {
+    setAccountInfo(null);
+    setError(null);
+  }, [address]);
 
   return (
     <ThemeProvider theme={theme}>
@@ -178,7 +181,7 @@ const App = () => {
                   variant="outlined"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="输入大哥钱包"
+                  placeholder="输入大哥钱包（仅支持SOL链地址）"
                   InputProps={{
                     startAdornment: <Search color="action" sx={{ mr: 1 }} />,
                   }}
@@ -249,14 +252,17 @@ const App = () => {
 
                 <Grid container spacing={3} sx={{ mb: 3 }}>
                   <Grid item xs={12} md={6}>
-                    <PortfolioValueChart currentValue={currentPortfolioValue(accountInfo.tokens)} ></PortfolioValueChart>
+                    <PortfolioValueChart currentValue={currentPortfolioValue(accountInfo.tokens)} />
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <RiskAssessmentDashboard tokens={accountInfo.tokens} totalValue={currentPortfolioValue(accountInfo.tokens)} ></RiskAssessmentDashboard>
+                    <RiskAssessmentDashboard 
+                      tokens={accountInfo.tokens} 
+                      totalValue={currentPortfolioValue(accountInfo.tokens)} 
+                    />
                   </Grid>
                 </Grid>
 
-                <TokenHoldingsTable tokens={accountInfo.tokens}></TokenHoldingsTable>
+                <TokenHoldingsTable tokens={accountInfo.tokens} />
               </motion.div>
             )}
           </AnimatePresence>
