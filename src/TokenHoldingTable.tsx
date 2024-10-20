@@ -252,7 +252,7 @@ const TokenHoldingTable = ({ tokens }) => {
             {filteredAndSortedTokens.map((token) => (
               <TableRow
                 key={token.mint}
-                onClick={() => window.open(`https://dexscreener.com/solana/${token.mint}`, "_blank")}
+                onClick={() => window.open(`${token.url}`, "_blank")}
                 sx={{ cursor: "pointer" }}
               >
                 <TableCell>
