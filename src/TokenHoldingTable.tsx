@@ -255,7 +255,7 @@ const TokenHoldingTable = ({ tokens }) => {
                 onClick={() => window.open(`${token.url}`, "_blank")}
                 sx={{ cursor: "pointer" }}
               >
-                <TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <Box
                       sx={{
@@ -311,9 +311,9 @@ const TokenHoldingTable = ({ tokens }) => {
                     </Box>
                   </Box>
                 </TableCell>
-                <TableCell>{formatToFirstNonZeroDecimal(token.balance)}</TableCell>
-                <TableCell>${formatToFirstNonZeroDecimal(token.price)}</TableCell>
-                <TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>{formatToFirstNonZeroDecimal(token.balance)}</TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>${formatToFirstNonZeroDecimal(token.price)}</TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>
                   <Typography 
                     variant="body2" 
                     sx={{
@@ -330,9 +330,9 @@ const TokenHoldingTable = ({ tokens }) => {
                     {token.priceChange24h.toFixed(2).padStart(6, ' ')}%
                   </Typography>
                 </TableCell>
-                <TableCell>${formatToFirstNonZeroDecimal(token.value)}</TableCell>
-                <TableCell>{token.marketCap ? `${formatMarketCap(token.marketCap)}` : "-"}</TableCell>
-                <TableCell>{token.volume24h ? `${formatMarketCap(token.volume24h)}` : "-"}</TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>${formatToFirstNonZeroDecimal(token.value)}</TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>{token.marketCap ? `${formatMarketCap(token.marketCap)}` : "-"}</TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>{token.volume24h ? `${formatMarketCap(token.volume24h)}` : "-"}</TableCell>
               </TableRow>
             ))}
           </TableBody>
