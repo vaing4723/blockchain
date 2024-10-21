@@ -216,7 +216,7 @@ const TokenHoldingTable = ({ tokens }) => {
           <TableHead>
             <TableRow>
               <TableCell style={{ whiteSpace: "nowrap" }}>代币符号</TableCell>
-              <TableCell style={{ whiteSpace: "nowrap" }}>余额</TableCell>
+              
               <TableCell style={{ whiteSpace: "nowrap" }}>价格</TableCell>
               <TableCell
                 style={{ whiteSpace: "nowrap" }}
@@ -225,6 +225,7 @@ const TokenHoldingTable = ({ tokens }) => {
                 24小时涨跌 {sortConfig.key === "priceChange24h" &&
                   (sortConfig.direction === "asc" ? <ArrowUpward /> : <ArrowDownward />)}
               </TableCell>
+              <TableCell style={{ whiteSpace: "nowrap" }}>余额</TableCell>
               <TableCell
                 style={{ whiteSpace: "nowrap" }}
                 onClick={() => handleSort("value")}
@@ -311,7 +312,7 @@ const TokenHoldingTable = ({ tokens }) => {
                     </Box>
                   </Box>
                 </TableCell>
-                <TableCell style={{ whiteSpace: "nowrap" }}>{formatToFirstNonZeroDecimal(token.balance)}</TableCell>
+                
                 <TableCell style={{ whiteSpace: "nowrap" }}>${formatToFirstNonZeroDecimal(token.price)}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap" }}>
                   <Typography 
@@ -330,6 +331,7 @@ const TokenHoldingTable = ({ tokens }) => {
                     {token.priceChange24h.toFixed(2).padStart(6, ' ')}%
                   </Typography>
                 </TableCell>
+                <TableCell style={{ whiteSpace: "nowrap" }}>{formatToFirstNonZeroDecimal(token.balance)}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap" }}>${formatToFirstNonZeroDecimal(token.value)}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap" }}>{token.marketCap ? `${formatMarketCap(token.marketCap)}` : "-"}</TableCell>
                 <TableCell style={{ whiteSpace: "nowrap" }}>{token.volume24h ? `${formatMarketCap(token.volume24h)}` : "-"}</TableCell>
